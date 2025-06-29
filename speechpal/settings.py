@@ -11,6 +11,10 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -41,9 +45,16 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'drf_yasg',
+    'social_django',
     # Local apps
     'core',
     'files',
+]
+
+AUTHENTICATION_BACKENDS = [
+    'social_core.backends.google.GoogleOAuth2',
+    'social_core.backends.apple.AppleIdAuth',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 MIDDLEWARE = [
@@ -54,6 +65,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'social_django.middleware.SocialAuthExceptionMiddleware',
 ]
 
 ROOT_URLCONF = 'speechpal.urls'
@@ -81,9 +93,13 @@ WSGI_APPLICATION = 'speechpal.wsgi.application'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": os.environ.get('DB_HOST', ''),
+        "NAME": os.environ.get('DB_NAME', ''),
+        "USER": os.environ.get('DB_USER', ''),
+        "PASSWORD": os.environ.get('DB_PASSWORD', ''),
+        "PORT": os.environ.get('DB_PORT', ''),
     }
 }
 
@@ -137,3 +153,38 @@ REST_FRAMEWORK = {
 }
 
 AUTH_USER_MODEL = 'core.User'
+
+LOGIN_URL          = '/api/auth/login/'
+LOGIN_REDIRECT_URL = '/api/auth/success/'
+LOGOUT_REDIRECT_URL= '/'
+
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY    = '<GOOGLE_CLIENT_ID>'
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = '<GOOGLE_CLIENT_SECRET>'
+SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE  = ['email','profile']
+
+# Google
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY    = '<GOOGLE_CLIENT_ID>'
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = '<GOOGLE_CLIENT_SECRET>'
+SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE  = ['email','profile']
+
+# Apple
+SOCIAL_AUTH_APPLE_ID_CLIENT  = '<APPLE_SERVICE_ID>'
+SOCIAL_AUTH_APPLE_ID_TEAM    = '<APPLE_TEAM_ID>'
+SOCIAL_AUTH_APPLE_ID_KEY     = '<APPLE_KEY_ID>'
+SOCIAL_AUTH_APPLE_ID_SECRET  = """-----BEGIN PRIVATE KEY-----
+…your .p8 contents…
+-----END PRIVATE KEY-----"""
+
+# your pipeline that saves the Google picture:
+SOCIAL_AUTH_PIPELINE = (
+    'social_core.pipeline.social_auth.social_details',
+    'social_core.pipeline.social_auth.social_uid',
+    'social_core.pipeline.social_auth.auth_allowed',
+    'social_core.pipeline.social_auth.social_user',
+    'social_core.pipeline.user.get_username',
+    'social_core.pipeline.user.create_user',
+    'core.pipeline.save_profile_photo',    # writes to Photo model
+    'social_core.pipeline.social_auth.associate_user',
+    'social_core.pipeline.social_auth.load_extra_data',
+    'social_core.pipeline.user.user_details',
+)
