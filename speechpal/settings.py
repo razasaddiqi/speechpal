@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     # Local apps
     'core',
     'files',
+    'users',
 ]
 
 AUTHENTICATION_BACKENDS = [

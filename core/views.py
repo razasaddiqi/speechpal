@@ -26,6 +26,18 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        headers = self.get_success_headers(serializer.data)
+        token, _ = Token.objects.get_or_create(user=user)
+        data = {
+            "token": token.key,
+            "user": UserSerializer(user).data,
+        }
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 class LoginView(generics.GenericAPIView):
     """API endpoint for logging in a user."""
@@ -39,7 +51,11 @@ class LoginView(generics.GenericAPIView):
         user = serializer.validated_data["user"]
         login(request, user)
         token, _ = Token.objects.get_or_create(user=user)
-        return Response({"token": token.key})
+        data = {
+            "token": token.key,
+            "user": UserSerializer(user).data,
+        }
+        return Response(data)
 
 
 class SsoView(generics.GenericAPIView):
