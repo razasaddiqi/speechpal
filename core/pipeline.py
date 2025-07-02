@@ -20,7 +20,7 @@ def save_profile_photo(backend, user, response, *args, **kwargs):
         return
 
     fname = f"{user.username}_google.jpg"
-    photo, created = Photo()
+    photo = Photo()
     photo.image.save(fname, ContentFile(resp.content), save=True)
     photo.save()
     user.photo = photo

@@ -13,7 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "photo"]
+        fields = ["id", "first_name", "last_name", "username", "email", "photo"]
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -23,7 +23,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "password", "photo"]
+        fields = ["id", "first_name", "last_name", "username", "email", "password", "photo"]
 
     def validate_password(self, value: str) -> str:
         validate_password(value, self.instance)

@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'drf_yasg',
     'social_django',
+    'corsheaders',
     # Local apps
     'core',
     'files',
@@ -61,6 +62,7 @@ AUTHENTICATION_BACKENDS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -86,6 +88,8 @@ TEMPLATES = [
         },
     },
 ]
+
+CORS_ORIGIN_ALLOW_ALL = True
 
 WSGI_APPLICATION = 'speechpal.wsgi.application'
 
@@ -159,9 +163,10 @@ LOGIN_URL          = '/api/auth/login/'
 LOGIN_REDIRECT_URL = '/api/auth/success/'
 LOGOUT_REDIRECT_URL= '/'
 
-SOCIAL_AUTH_GOOGLE_OAUTH2_KEY    = '<GOOGLE_CLIENT_ID>'
-SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = '<GOOGLE_CLIENT_SECRET>'
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY    = os.environ.get('GOOGLE_CLIENT_ID')
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE  = ['email','profile']
+SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ['first_name', 'last_name', 'email']
 
 # Google
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY    = '<GOOGLE_CLIENT_ID>'

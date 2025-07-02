@@ -7,3 +7,4 @@ psycopg-binary
 psycopg2-binary
 python-dotenv
 social-auth-app-django
+django-cors-headers
