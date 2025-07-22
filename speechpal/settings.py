@@ -47,10 +47,12 @@ INSTALLED_APPS = [
     'drf_yasg',
     'social_django',
     'corsheaders',
+    'channels',
     # Local apps
     'core',
     'files',
     'users',
+    'chat',
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -92,6 +94,13 @@ TEMPLATES = [
 CORS_ORIGIN_ALLOW_ALL = True
 
 WSGI_APPLICATION = 'speechpal.wsgi.application'
+ASGI_APPLICATION = 'speechpal.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
 
 
 # Database

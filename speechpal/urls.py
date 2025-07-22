@@ -32,5 +32,6 @@ urlpatterns = [
     path('api/core/', include('core.urls')),
     path('api/files/', include('files.urls')),
     path('api/users/', include('users.urls')),
+    path('api/chat/', include('chat.urls')),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='swagger'),
 ]
