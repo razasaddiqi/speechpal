@@ -10,3 +10,6 @@ social-auth-app-django
 django-cors-headers
 channels
 openai
+gunicorn
+uvicorn
+aiohttp

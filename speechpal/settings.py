@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'files',
     'users',
     'chat',
+    'therapy',
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -203,3 +204,11 @@ SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.load_extra_data',
     'social_core.pipeline.user.user_details',
 )
+
+# AI Services Configuration
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', 'your-openai-api-key-here')
+ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY', 'your-elevenlabs-api-key-here')
+ELEVENLABS_VOICE_ID = os.getenv('ELEVENLABS_VOICE_ID', 'pNInz6obpgDQGcFmaJgB')  # Adam voice (child-friendly)
+
+# Enable mock AI responses if API keys are not set
+USE_MOCK_AI = OPENAI_API_KEY == 'your-openai-api-key-here'
