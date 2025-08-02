@@ -74,6 +74,42 @@ class AISpeechService:
             logger.error(f'AI Analysis Error: {e}')
             return await self._get_mock_analysis(spoken_text)
 
+    async def transcribe_audio_with_whisper(self, audio_bytes: bytes) -> str:
+        """Transcribe audio using OpenAI Whisper API"""
+        try:
+            if self.use_mock:
+                return "Hello, this is a test transcription."
+            
+            async with aiohttp.ClientSession() as session:
+                # Create form data with audio file
+                data = aiohttp.FormData()
+                data.add_field('file', 
+                             audio_bytes,
+                             filename='audio.wav',
+                             content_type='audio/wav')
+                data.add_field('model', 'whisper-1')
+                data.add_field('response_format', 'text')
+                
+                async with session.post(
+                    'https://api.openai.com/v1/audio/transcriptions',
+                    headers={
+                        'Authorization': f'Bearer {self.openai_key}',
+                    },
+                    data=data
+                ) as response:
+                    if response.status == 200:
+                        transcribed_text = await response.text()
+                        logger.info(f'Whisper transcription successful: {transcribed_text[:100]}...')
+                        return transcribed_text.strip()
+                    else:
+                        error_text = await response.text()
+                        logger.error(f'Whisper API Error: {response.status} - {error_text}')
+                        raise Exception(f'Whisper transcription failed: {response.status}')
+                        
+        except Exception as e:
+            logger.error(f'Whisper transcription error: {e}')
+            raise e
+
     async def generate_spoken_feedback_audio(self, feedback_text: str) -> bytes:
         """Generate audio feedback using ElevenLabs TTS"""
         try:

@@ -74,6 +74,8 @@ class SpeechAnalysisConsumer(AsyncWebsocketConsumer):
             
             if message_type == 'analyze_speech':
                 await self.handle_speech_analysis(data)
+            elif message_type == 'analyze_audio':
+                await self.handle_audio_analysis(data)
             elif message_type == 'get_pronunciation_help':
                 await self.handle_pronunciation_help(data)
             elif message_type == 'ping':
@@ -206,6 +208,147 @@ class SpeechAnalysisConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({
                 'type': 'error',
                 'message': 'Failed to analyze speech. Please try again.'
+            }))
+
+    async def handle_audio_analysis(self, data):
+        """Handle audio analysis request - transcribe audio to text then analyze"""
+        try:
+            audio_data = data.get('audio_data', '')
+            duration_seconds = data.get('duration', 0)
+            timestamp = data.get('timestamp', int(time.time() * 1000))
+            
+            if not audio_data:
+                await self.send(text_data=json.dumps({
+                    'type': 'error',
+                    'message': 'No audio data provided for analysis'
+                }))
+                return
+
+            # Send processing status
+            await self.send(text_data=json.dumps({
+                'type': 'analysis_started',
+                'message': 'Transcribing your audio...'
+            }))
+
+            # Decode base64 audio data
+            try:
+                audio_bytes = base64.b64decode(audio_data)
+            except Exception as e:
+                logger.error(f"Failed to decode audio data: {e}")
+                await self.send(text_data=json.dumps({
+                    'type': 'error',
+                    'message': 'Invalid audio data format'
+                }))
+                return
+
+            # Use OpenAI Whisper to transcribe audio to text
+            try:
+                spoken_text = await self.ai_service.transcribe_audio_with_whisper(audio_bytes)
+                if not spoken_text or spoken_text.strip() == '':
+                    await self.send(text_data=json.dumps({
+                        'type': 'error',
+                        'message': 'Could not transcribe audio. Please try speaking more clearly.'
+                    }))
+                    return
+            except Exception as e:
+                logger.error(f"Whisper transcription failed: {e}")
+                await self.send(text_data=json.dumps({
+                    'type': 'error',
+                    'message': 'Failed to transcribe audio. Please try again.'
+                }))
+                return
+
+            # Generate request ID for deduplication using transcribed text
+            request_id = self._generate_request_id(spoken_text, timestamp)
+            
+            # Check if this request was already processed
+            if request_id in self.processed_requests:
+                logger.warning(f"Duplicate request detected and ignored: {request_id}")
+                return
+            
+            # Mark request as being processed
+            self.processed_requests.add(request_id)
+
+            # Update processing message
+            await self.send(text_data=json.dumps({
+                'type': 'analysis_started',
+                'message': 'Analyzing your speech...'
+            }))
+
+            # Get AI analysis using transcribed text
+            user_age = await self.get_user_age()
+            analysis = await self.ai_service.analyze_speech_with_ai(spoken_text, user_age)
+            
+            # Generate comprehensive feedback text
+            feedback_text = self.ai_service.generate_comprehensive_feedback(analysis)
+            
+            # Generate audio feedback (optional)
+            audio_data = None
+            try:
+                audio_bytes = await self.ai_service.generate_spoken_feedback_audio(feedback_text)
+                if audio_bytes:
+                    audio_data = base64.b64encode(audio_bytes).decode('utf-8')
+            except Exception as e:
+                logger.warning(f"Audio generation failed: {e}")
+
+            # Save speech session and update user progress (atomic operation)
+            session_result = await self.save_speech_session_atomic(analysis, spoken_text, duration_seconds, request_id)
+            
+            if not session_result:
+                # Session already exists, this is a duplicate
+                logger.warning(f"Duplicate session detected for request: {request_id}")
+                return
+
+            old_level = session_result.get('old_level', 1)
+            new_level = session_result.get('new_level', 1)
+            level_up = new_level > old_level
+            
+            # Get unlocked items if level up occurred
+            unlocked_items = []
+            if level_up:
+                unlocked_items = await self.get_newly_unlocked_items(new_level)
+
+            # Send single comprehensive response with all data
+            response = {
+                'type': 'analysis_complete',
+                'request_id': request_id,  # Include request ID for client-side deduplication
+                'analysis': {
+                    'clarity_score': analysis['clarity_score'],
+                    'grammar_score': analysis['grammar_score'],
+                    'vocabulary_score': analysis['vocabulary_score'],
+                    'overall_score': analysis['overall_score'],
+                    'difficult_words': analysis['difficult_words'],
+                    'improvement_suggestions': analysis['improvement_suggestions'],
+                    'encouragement': analysis['encouragement'],
+                    'pronunciation_tips': analysis['pronunciation_tips'],
+                    'experience_gained': analysis['experience_gained'],
+                    'strengths': self.generate_strengths(analysis),
+                    'areas_for_improvement': analysis['improvement_suggestions'],
+                    'feedback_text': feedback_text,
+                    'word_count': len(spoken_text.split())
+                },
+                'user_progress': {
+                    'level': new_level,
+                    'experience': session_result.get('total_experience', 0),
+                    'level_up': level_up,
+                    'unlocked_items': unlocked_items,
+                    'achievements': []  # For future use
+                },
+                'audio_feedback': audio_data,
+                'session_id': session_result.get('session_id'),
+                'duration': duration_seconds
+            }
+            
+            # Send the single comprehensive response
+            await self.send(text_data=json.dumps(response))
+            
+            logger.info(f"Audio analysis completed successfully for request: {request_id}, Level: {old_level}->{new_level}, XP: {analysis['experience_gained']}")
+
+        except Exception as e:
+            logger.error(f"Audio analysis error: {e}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Failed to analyze audio. Please try again.'
             }))
 
     async def handle_pronunciation_help(self, data):
