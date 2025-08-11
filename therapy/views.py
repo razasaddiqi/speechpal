@@ -9,13 +9,14 @@ from rest_framework.views import APIView
 
 from .models import (
     UserProfile, CharacterCustomization, UnlockedCustomization,
-    SpeechSession, Achievement, UserAchievement, SpeechExercise, ExerciseAttempt
+    SpeechSession, Achievement, UserAchievement, SpeechExercise, ExerciseAttempt,
+    OnboardingProfile, UserAvatar,
 )
 from .serializers import (
     UserProfileSerializer, CharacterCustomizationSerializer, UnlockedCustomizationSerializer,
     SpeechSessionSerializer, AchievementSerializer, UserAchievementSerializer,
     SpeechExerciseSerializer, ExerciseAttemptSerializer, CharacterCustomizationOptionsSerializer,
-    ProgressSummarySerializer
+    ProgressSummarySerializer, OnboardingProfileSerializer, UserAvatarSerializer,
 )
 
 
@@ -288,6 +289,8 @@ class ProgressSummaryView(APIView):
             'achievements': UserAchievementSerializer(achievements, many=True).data,
             'available_exercises': SpeechExerciseSerializer(available_exercises, many=True).data,
             'unlocked_customizations': UnlockedCustomizationSerializer(unlocked_customizations, many=True).data,
+            'onboarding_completed': profile.has_completed_onboarding,
+            'has_active_avatar': profile.has_active_avatar,
         }
         
         # serializer = ProgressSummarySerializer(data)
@@ -349,3 +352,77 @@ def analyze_speech(request):
         'strengths': strengths,
         'word_count': word_count
     }) 
+
+
+class OnboardingProfileView(generics.RetrieveUpdateAPIView):
+    """Create or update onboarding profile and mark onboarding complete"""
+    serializer_class = OnboardingProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        profile, _ = OnboardingProfile.objects.get_or_create(user=self.request.user)
+        return profile
+
+    def perform_update(self, serializer):
+        onboarding = serializer.save(user=self.request.user)
+        # Mark user profile as onboarded and initialize character if not
+        therapy_profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
+        if not therapy_profile.has_completed_onboarding:
+            therapy_profile.has_completed_onboarding = True
+            therapy_profile.save()
+
+        character, _ = CharacterCustomization.objects.get_or_create(user=self.request.user)
+        if not character.is_initialized:
+            # keep values from request if provided via CharacterCustomizationView later
+            character.is_initialized = True
+            character.save()
+
+        return onboarding
+
+
+class InitializeAvatarView(APIView):
+    """Initialize character customization with limited starter options"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        body_color = request.data.get('body_color', 'brown')
+        eye_color = request.data.get('eye_color', 'brown')
+        accessory = request.data.get('accessory', 'none')
+
+        # Restrict to limited starter options
+        allowed_body = {'brown', 'golden', 'white'}
+        allowed_eye = {'brown', 'blue', 'green'}
+        allowed_acc = {'none', 'collar', 'hat'}
+
+        if body_color not in allowed_body or eye_color not in allowed_eye or accessory not in allowed_acc:
+            return Response({'detail': 'Invalid starter customization'}, status=status.HTTP_400_BAD_REQUEST)
+
+        character, _ = CharacterCustomization.objects.get_or_create(user=request.user)
+        character.body_color = body_color
+        character.eye_color = eye_color
+        character.accessory = accessory
+        character.is_initialized = True
+        character.save()
+
+        return Response(CharacterCustomizationSerializer(character).data, status=status.HTTP_200_OK)
+
+
+class UserAvatarView(generics.RetrieveUpdateAPIView):
+    """Save and retrieve user's Fluttermoji avatar data"""
+    serializer_class = UserAvatarSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        avatar, _ = UserAvatar.objects.get_or_create(user=self.request.user, defaults={
+            'data': ''
+        })
+        return avatar
+
+    def perform_update(self, serializer):
+        avatar = serializer.save(user=self.request.user, provider='fluttermoji', is_active=True)
+        # Mark profile as having active avatar
+        profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
+        if not profile.has_active_avatar:
+            profile.has_active_avatar = True
+            profile.save()
+        return avatar

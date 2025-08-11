@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import (
     UserProfile, CharacterCustomization, UnlockedCustomization,
-    SpeechSession, Achievement, UserAchievement, SpeechExercise, ExerciseAttempt
+    SpeechSession, Achievement, UserAchievement, SpeechExercise, ExerciseAttempt,
+    OnboardingProfile, UserAvatar,
 )
 
 
@@ -14,7 +15,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'user', 'user_username', 'level', 'experience_points', 
             'xp_to_next_level', 'total_speaking_time', 'improvement_score',
-            'created_at', 'updated_at'
+            'has_completed_onboarding', 'has_active_avatar', 'created_at', 'updated_at'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at']
 
@@ -23,7 +24,7 @@ class CharacterCustomizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = CharacterCustomization
         fields = [
-            'user', 'body_color', 'eye_color', 'accessory',
+            'user', 'body_color', 'eye_color', 'accessory', 'is_initialized',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at']
@@ -114,3 +115,20 @@ class ProgressSummarySerializer(serializers.Serializer):
     achievements = UserAchievementSerializer(many=True)
     available_exercises = SpeechExerciseSerializer(many=True)
     unlocked_customizations = UnlockedCustomizationSerializer(many=True) 
+
+
+class OnboardingProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OnboardingProfile
+        fields = [
+            'user', 'age_range', 'primary_language', 'goals', 'interests',
+            'daily_goal_minutes', 'voice_preference', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['user', 'created_at', 'updated_at']
+
+
+class UserAvatarSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserAvatar
+        fields = ['user', 'provider', 'data', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['user', 'provider', 'created_at', 'updated_at']

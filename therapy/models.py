@@ -12,6 +12,8 @@ class UserProfile(models.Model):
     experience_points = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     total_speaking_time = models.DurationField(default='00:00:00')
     improvement_score = models.FloatField(default=0.0, validators=[MinValueValidator(0.0), MaxValueValidator(100.0)])
+    has_completed_onboarding = models.BooleanField(default=False)
+    has_active_avatar = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -62,6 +64,7 @@ class CharacterCustomization(models.Model):
     body_color = models.CharField(max_length=20, choices=BODY_COLOR_CHOICES, default='brown')
     eye_color = models.CharField(max_length=20, choices=EYE_COLOR_CHOICES, default='brown')
     accessory = models.CharField(max_length=20, choices=ACCESSORY_CHOICES, default='none')
+    is_initialized = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -188,6 +191,35 @@ class SpeechExercise(models.Model):
         return f"{self.title} - {self.difficulty}"
 
 
+class OnboardingProfile(models.Model):
+    """One-time onboarding responses for tailoring therapy experience"""
+
+    AGE_RANGE_CHOICES = [
+        ('3-4', '3-4 years'),
+        ('5-6', '5-6 years'),
+        ('7-9', '7-9 years'),
+        ('10+', '10+ years'),
+    ]
+
+    VOICE_PREFERENCE_CHOICES = [
+        ('kid', 'Kid voice'),
+        ('soft', 'Soft & friendly'),
+        ('neutral', 'Neutral'),
+    ]
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="onboarding_profile")
+    age_range = models.CharField(max_length=10, choices=AGE_RANGE_CHOICES)
+    primary_language = models.CharField(max_length=50, default='English')
+    goals = models.JSONField(default=list)          # ["pronunciation", "fluency", ...]
+    interests = models.JSONField(default=list)      # ["animals", "superheroes", ...]
+    daily_goal_minutes = models.IntegerField(default=10, validators=[MinValueValidator(5), MaxValueValidator(60)])
+    voice_preference = models.CharField(max_length=10, choices=VOICE_PREFERENCE_CHOICES, default='kid')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Onboarding for {self.user.username}"
+
 class ExerciseAttempt(models.Model):
     """Track user attempts at exercises"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -202,3 +234,17 @@ class ExerciseAttempt(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.exercise.title}" 
+
+
+class UserAvatar(models.Model):
+    """Stores user's Fluttermoji avatar data and state"""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="avatar")
+    provider = models.CharField(max_length=50, default='fluttermoji')
+    data = models.TextField()  # encoded attribute string from fluttermoji
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} avatar ({self.provider})"
