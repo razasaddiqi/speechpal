@@ -2,6 +2,8 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from datetime import timedelta
+from django.utils.dateparse import parse_duration
+from datetime import timedelta
 from rest_framework import generics, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -264,7 +266,16 @@ class ProgressSummaryView(APIView):
         user = request.user
         
         # Get or create profile
-        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        # Ensure total_speaking_time is a timedelta (not a raw string from old defaults)
+        if isinstance(profile.total_speaking_time, str):
+            parsed_duration = parse_duration(profile.total_speaking_time)
+            profile.total_speaking_time = parsed_duration if parsed_duration is not None else timedelta()
+            # Persist the corrected value so future reads are safe
+            try:
+                profile.save(update_fields=["total_speaking_time"])
+            except Exception:
+                pass
         character, _ = CharacterCustomization.objects.get_or_create(user=user)
         
         # Get recent sessions (last 10)

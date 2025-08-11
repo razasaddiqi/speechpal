@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
+from datetime import timedelta
 import uuid
 import json
 
@@ -10,7 +11,7 @@ class UserProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="therapy_profile")
     level = models.IntegerField(default=1, validators=[MinValueValidator(1)])
     experience_points = models.IntegerField(default=0, validators=[MinValueValidator(0)])
-    total_speaking_time = models.DurationField(default='00:00:00')
+    total_speaking_time = models.DurationField(default=timedelta())
     improvement_score = models.FloatField(default=0.0, validators=[MinValueValidator(0.0), MaxValueValidator(100.0)])
     has_completed_onboarding = models.BooleanField(default=False)
     has_active_avatar = models.BooleanField(default=False)
