@@ -17,6 +17,7 @@ application = ProtocolTypeRouter({
         AuthMiddlewareStack(URLRouter([
           path("ws/chat/<uuid:session_id>/", ChatConsumer.as_asgi()),
           path("ws/speech-analysis/", therapy_consumers.SpeechAnalysisConsumer.as_asgi()),
+          path('ws/xp-updates/', therapy_consumers.XPUpdateConsumer.as_asgi()),
         ]))
     ),
 })

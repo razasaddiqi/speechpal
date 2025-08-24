@@ -363,3 +363,56 @@ class UserMemory(models.Model):
             user=user, 
             is_active=True
         ).order_by('-importance_score', '-last_referenced')[:limit]
+
+
+class WebhookLog(models.Model):
+    """Log all webhook calls for debugging and monitoring"""
+    
+    WEBHOOK_TYPE_CHOICES = [
+        ('award_xp', 'Award XP'),
+        ('conversation_end', 'Conversation End'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('success', 'Success'),
+        ('error', 'Error'),
+        ('pending', 'Pending'),
+    ]
+    
+    webhook_type = models.CharField(max_length=20, choices=WEBHOOK_TYPE_CHOICES)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    user_id_from_request = models.IntegerField(null=True, blank=True)  # user_id from webhook payload
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    request_data = models.JSONField()  # Store the incoming webhook data
+    response_data = models.JSONField(null=True, blank=True)  # Store the response data
+    error_message = models.TextField(null=True, blank=True)  # Store any error messages
+    processing_time_ms = models.IntegerField(null=True, blank=True)  # Time taken to process
+    ip_address = models.GenericIPAddressField(null=True, blank=True)  # IP address of the request
+    user_agent = models.TextField(null=True, blank=True)  # User agent string
+    created_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['webhook_type', 'status']),
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['status', 'created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.webhook_type} - {self.user_id_from_request} - {self.status} - {self.created_at}"
+    
+    @property
+    def is_successful(self):
+        return self.status == 'success'
+    
+    @property
+    def is_error(self):
+        return self.status == 'error'
+    
+    @property
+    def processing_duration(self):
+        if self.processing_time_ms:
+            return f"{self.processing_time_ms}ms"
+        return "N/A"

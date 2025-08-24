@@ -33,4 +33,7 @@ urlpatterns = [
     # ElevenLabs Webhook endpoints
     path('webhooks/elevenlabs/award-xp/', views.elevenlabs_award_xp_webhook, name='elevenlabs_award_xp'),
     path('webhooks/elevenlabs/conversation-end/', views.elevenlabs_conversation_end_webhook, name='elevenlabs_conversation_end'),
+    
+    # Webhook monitoring
+    path('webhooks/status/', views.webhook_status, name='webhook_status'),
 ] 

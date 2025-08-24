@@ -1,4 +1,5 @@
 import logging
+import time
 from django.shortcuts import get_object_or_404
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
@@ -11,6 +12,7 @@ from rest_framework.views import APIView
 from django.contrib.auth.models import User
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from .webhook_logger import WebhookLogger
 
 logger = logging.getLogger(__name__)
 
@@ -822,9 +824,15 @@ def get_user_dynamic_variables(request):
 @permission_classes([])  # No authentication required for webhooks
 def elevenlabs_award_xp_webhook(request):
     """Webhook endpoint for ElevenLabs to award XP based on speech performance"""
+    start_time = time.time()
+    webhook_log = None
+    
     try:
         data = request.data
         logger.info(f"Received ElevenLabs award_xp webhook: {data}")
+        
+        # Log the webhook call
+        webhook_log = WebhookLogger.log_webhook_call('award_xp', data, request, start_time)
         
         # Extract data from ElevenLabs webhook
         user_id = data.get('user_id')
@@ -834,14 +842,20 @@ def elevenlabs_award_xp_webhook(request):
         session_id = data.get('session_id')
         
         if not user_id:
-            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            error_msg = 'user_id is required'
+            if webhook_log:
+                WebhookLogger.update_webhook_log(webhook_log, 'error', error_message=error_msg)
+            return Response({'error': error_msg}, status=status.HTTP_400_BAD_REQUEST)
         
         # Get user profile
         try:
             user = User.objects.get(id=user_id)
             profile = UserProfile.objects.get(user=user)
         except (User.DoesNotExist, UserProfile.DoesNotExist):
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            error_msg = f'User not found with ID: {user_id}'
+            if webhook_log:
+                WebhookLogger.update_webhook_log(webhook_log, 'error', error_message=error_msg)
+            return Response({'error': error_msg}, status=status.HTTP_404_NOT_FOUND)
         
         # Calculate XP based on performance
         base_xp = _calculate_base_xp(difficulty, score)
@@ -890,10 +904,17 @@ def elevenlabs_award_xp_webhook(request):
         # Send real-time update via WebSocket
         _send_xp_update_to_websocket(user_id, response_data)
         
+        # Update webhook log with success
+        if webhook_log:
+            WebhookLogger.update_webhook_log(webhook_log, 'success', response_data)
+        
         return Response(response_data, status=status.HTTP_200_OK)
         
     except Exception as e:
-        logger.error(f"Error in award_xp webhook: {e}")
+        error_msg = f"Error in award_xp webhook: {e}"
+        logger.error(error_msg)
+        if webhook_log:
+            WebhookLogger.update_webhook_log(webhook_log, 'error', error_message=error_msg)
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -901,9 +922,15 @@ def elevenlabs_award_xp_webhook(request):
 @permission_classes([])
 def elevenlabs_conversation_end_webhook(request):
     """Webhook endpoint for ElevenLabs conversation end analysis"""
+    start_time = time.time()
+    webhook_log = None
+    
     try:
         data = request.data
         logger.info(f"Received ElevenLabs conversation end webhook: {data}")
+        
+        # Log the webhook call
+        webhook_log = WebhookLogger.log_webhook_call('conversation_end', data, request, start_time)
         
         # Extract conversation data
         user_id = data.get('user_id')
@@ -913,14 +940,20 @@ def elevenlabs_conversation_end_webhook(request):
         dynamic_variables = data.get('dynamic_variables', {})
         
         if not user_id:
-            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            error_msg = 'user_id is required'
+            if webhook_log:
+                WebhookLogger.update_webhook_log(webhook_log, 'error', error_message=error_msg)
+            return Response({'error': error_msg}, status=status.HTTP_400_BAD_REQUEST)
         
         # Get user profile
         try:
             user = User.objects.get(id=user_id)
             profile = UserProfile.objects.get(user=user)
         except (User.DoesNotExist, UserProfile.DoesNotExist):
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            error_msg = f'User not found with ID: {user_id}'
+            if webhook_log:
+                WebhookLogger.update_webhook_log(webhook_log, 'error', error_message=error_msg)
+            return Response({'error': error_msg}, status=status.HTTP_404_NOT_FOUND)
         
         # Calculate XP based on analysis results
         total_xp = _calculate_conversation_xp(analysis_results, dynamic_variables)
@@ -959,10 +992,17 @@ def elevenlabs_conversation_end_webhook(request):
         # Send real-time update via WebSocket
         _send_xp_update_to_websocket(user_id, response_data)
         
+        # Update webhook log with success
+        if webhook_log:
+            WebhookLogger.update_webhook_log(webhook_log, 'success', response_data)
+        
         return Response(response_data, status=status.HTTP_200_OK)
         
     except Exception as e:
-        logger.error(f"Error in conversation end webhook: {e}")
+        error_msg = f"Error in conversation end webhook: {e}"
+        logger.error(error_msg)
+        if webhook_log:
+            WebhookLogger.update_webhook_log(webhook_log, 'error', error_message=error_msg)
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1103,6 +1143,41 @@ def _send_xp_update_to_websocket(user_id, data):
         )
     except Exception as e:
         logger.error(f"Error sending XP update to WebSocket: {e}")
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def webhook_status(request):
+    """Get webhook status and statistics for monitoring"""
+    try:
+        stats = WebhookLogger.get_webhook_stats()
+        summary = WebhookLogger.get_webhook_summary()
+        recent_errors = WebhookLogger.get_recent_errors(5)
+        
+        # Format recent errors for display
+        error_list = []
+        for error in recent_errors:
+            error_list.append({
+                'id': error.id,
+                'webhook_type': error.webhook_type,
+                'user_id': error.user_id_from_request,
+                'error_message': error.error_message,
+                'created_at': error.created_at.isoformat(),
+                'request_data': error.request_data
+            })
+        
+        response_data = {
+            'stats': stats,
+            'summary': summary,
+            'recent_errors': error_list,
+            'status': 'healthy' if stats['error_calls'] == 0 else 'has_errors'
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error getting webhook status: {e}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

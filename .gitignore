@@ -1,2 +1,128 @@
+# --- Python bytecode / cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtual environments (keep these out of git) ---
+.venv/
 venv/
+env/
+ENV/
 .env
+.python-version
+
+# --- Packaging / build artifacts ---
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Installer / tooling logs ---
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Test / coverage caches ---
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+nosetests.xml
+junit.xml
+.cache/
+
+# --- Type checker / linter caches ---
+.mypy_cache/
+.dmypy.json
+.pytype/
+.pyrightcache/
+.ruff_cache/
+.pyre/
+
+# --- Django specifics ---
+*.log
+logs/
+log/
+local_settings.py
+settings_local.py
+
+# SQLite (dev only)
+db.sqlite3
+db.sqlite3-journal
+
+# Media (user uploads) — runtime only
+media/
+
+# Collected static (STATIC_ROOT) — adjust to your STATIC_ROOT if different
+staticfiles/
+static_root/
+
+# WhiteNoise cache (if used)
+.whitenoise-cache/
+
+# Celery / RQ
+celerybeat-schedule
+celerybeat.pid
+
+# Translations (compiled; keep .po, ignore .mo)
+*.mo
+
+# --- Environment / secrets (commit an example instead) ---
+.env
+.env.*
+*.env
+!.env.example
+secrets.json
+
+# --- Frontend (if present in the repo) ---
+node_modules/
+bower_components/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+# Common build output folders (don’t ignore your source /static/)
+public/build/
+frontend/build/
+dist-frontend/
+.next/
+.nuxt/
+
+# --- Docs ---
+docs/_build/
+
+# --- OS / Editor junk ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.iml
+*.code-workspace
+*.sublime-*
+
+# --- Misc temp / dumps ---
+tmp/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.orig
+*.db
+*.sqlite3
+*.rdb
+*.sql
+*.dump

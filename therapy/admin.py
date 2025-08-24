@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     UserProfile, CharacterCustomization, UnlockedCustomization,
-    SpeechSession, Achievement, UserAchievement, SpeechExercise, ExerciseAttempt
+    SpeechSession, Achievement, UserAchievement, SpeechExercise, ExerciseAttempt,
+    WebhookLog
 )
 
 
@@ -61,4 +62,33 @@ class ExerciseAttemptAdmin(admin.ModelAdmin):
     list_display = ['user', 'exercise', 'completed', 'created_at']
     list_filter = ['completed', 'exercise__exercise_type', 'created_at']
     search_fields = ['user__username', 'exercise__title']
-    readonly_fields = ['id', 'created_at'] 
+    readonly_fields = ['id', 'created_at']
+
+
+@admin.register(WebhookLog)
+class WebhookLogAdmin(admin.ModelAdmin):
+    list_display = ['webhook_type', 'user_id_from_request', 'status', 'processing_duration', 'created_at']
+    list_filter = ['webhook_type', 'status', 'created_at']
+    search_fields = ['user_id_from_request', 'error_message']
+    readonly_fields = ['created_at', 'processed_at', 'processing_duration']
+    
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('webhook_type', 'user', 'user_id_from_request', 'status')
+        }),
+        ('Request Details', {
+            'fields': ('request_data', 'ip_address', 'user_agent')
+        }),
+        ('Response Details', {
+            'fields': ('response_data', 'error_message', 'processing_time_ms')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'processed_at')
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        return False  # Webhook logs should only be created by the system
+    
+    def has_change_permission(self, request, obj=None):
+        return False  # Webhook logs should not be edited manually 
