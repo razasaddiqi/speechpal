@@ -540,3 +540,179 @@ class SpeechAnalysisConsumer(AsyncWebsocketConsumer):
             strengths.append("Keep practicing - you're improving!")
         
         return strengths 
+
+class XPUpdateConsumer(AsyncWebsocketConsumer):
+    """WebSocket consumer for real-time XP and level updates"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = None
+        self.user_group_name = None
+
+    async def connect(self):
+        """Accept WebSocket connection and join user group"""
+        # Get authorization header from scope
+        headers = dict(self.scope.get('headers', []))
+        auth_header = headers.get(b'authorization', b'').decode()
+        
+        if not auth_header.startswith('Token '):
+            await self.close()
+            return
+            
+        # Extract token and authenticate user
+        token = auth_header.split(' ')[1]
+        
+        @database_sync_to_async
+        def get_user_from_token(token_key):
+            try:
+                from rest_framework.authtoken.models import Token
+                token_obj = Token.objects.get(key=token_key)
+                return token_obj.user
+            except Token.DoesNotExist:
+                return None
+                
+        self.user = await get_user_from_token(token)
+        if not self.user:
+            await self.close() 
+            return
+            
+        # Join user-specific group for XP updates
+        self.user_group_name = f"user_{self.user.id}"
+        await self.channel_layer.group_add(
+            self.user_group_name,
+            self.channel_name
+        )
+        
+        await self.accept()
+        
+        # Send initial connection confirmation with current XP/level
+        user_profile = await self.get_user_profile()
+        await self.send(text_data=json.dumps({
+            'type': 'connection_established',
+            'message': 'XP update service connected',
+            'user_xp': user_profile.experience_points if user_profile else 0,
+            'user_level': user_profile.level if user_profile else 1,
+            'xp_to_next_level': user_profile.xp_to_next_level if user_profile else 100
+        }))
+
+    async def disconnect(self, close_code):
+        """Handle WebSocket disconnection"""
+        if self.user_group_name:
+            await self.channel_layer.group_discard(
+                self.user_group_name,
+                self.channel_name
+            )
+        logger.info(f"XP update WebSocket disconnected: {close_code}")
+
+    async def receive(self, text_data):
+        """Handle incoming WebSocket messages"""
+        try:
+            data = json.loads(text_data)
+            message_type = data.get('type')
+            
+            if message_type == 'authorization':
+                # Handle authorization message
+                token = data.get('token')
+                if token:
+                    await self.handle_authorization(token)
+            elif message_type == 'ping':
+                await self.send(text_data=json.dumps({'type': 'pong'}))
+            elif message_type == 'get_current_xp':
+                await self.send_current_xp()
+            else:
+                await self.send(text_data=json.dumps({
+                    'type': 'error',
+                    'message': f'Unknown message type: {message_type}'
+                }))
+                
+        except json.JSONDecodeError:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Invalid JSON format'
+            }))
+        except Exception as e:
+            logger.error(f"Error handling XP WebSocket message: {e}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Internal server error'
+            }))
+
+    async def xp_update(self, event):
+        """Handle XP update messages from webhooks"""
+        data = event['data']
+        await self.send(text_data=json.dumps({
+            'type': 'xp_update',
+            'data': data
+        }))
+
+    async def send_current_xp(self):
+        """Send current XP and level information"""
+        user_profile = await self.get_user_profile()
+        if user_profile:
+            await self.send(text_data=json.dumps({
+                'type': 'current_xp',
+                'user_xp': user_profile.experience_points,
+                'user_level': user_profile.level,
+                'xp_to_next_level': user_profile.xp_to_next_level,
+                'level_progress': user_profile.level_progress
+            }))
+
+    @database_sync_to_async
+    def get_user_profile(self):
+        """Get user profile from database"""
+        try:
+            return UserProfile.objects.get(user=self.user)
+        except UserProfile.DoesNotExist:
+            return None
+
+    async def handle_authorization(self, token):
+        """Handle authorization message from client"""
+        try:
+            from rest_framework.authtoken.models import Token
+            
+            @database_sync_to_async
+            def get_user_from_token(token_key):
+                try:
+                    token_obj = Token.objects.get(key=token_key)
+                    return token_obj.user
+                except Token.DoesNotExist:
+                    return None
+            
+            user = await get_user_from_token(token)
+            if user:
+                self.user = user
+                self.user_group_name = f"user_{self.user.id}"
+                await self.channel_layer.group_add(
+                    self.user_group_name,
+                    self.channel_name
+                )
+                
+                # Send authorization success
+                await self.send(text_data=json.dumps({
+                    'type': 'authorization_success',
+                    'message': 'Authorization successful'
+                }))
+                
+                # Send current XP data
+                user_profile = await self.get_user_profile()
+                if user_profile:
+                    await self.send(text_data=json.dumps({
+                        'type': 'connection_established',
+                        'message': 'XP update service connected',
+                        'user_xp': user_profile.experience_points,
+                        'user_level': user_profile.level,
+                        'xp_to_next_level': user_profile.xp_to_next_level
+                    }))
+            else:
+                await self.send(text_data=json.dumps({
+                    'type': 'authorization_error',
+                    'message': 'Invalid token'
+                }))
+                await self.close()
+        except Exception as e:
+            logger.error(f"Authorization error: {e}")
+            await self.send(text_data=json.dumps({
+                'type': 'authorization_error',
+                'message': 'Authorization failed'
+            }))
+            await self.close() 

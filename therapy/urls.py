@@ -23,4 +23,14 @@ urlpatterns = [
     # Exercises
     path('exercises/', views.AvailableExercisesView.as_view(), name='available-exercises'),
     path('exercises/attempt/', views.ExerciseAttemptCreateView.as_view(), name='exercise-attempt'),
+    
+    # Eleven Labs integration endpoints
+    path('conversation/context/', views.ConversationContextView.as_view(), name='conversation-context'),
+    path('conversation/session/', views.ConversationSessionCreateView.as_view(), name='conversation-session-create'),
+    path('conversation/feedback/', views.ConversationFeedbackView.as_view(), name='conversation-feedback'),
+    path('conversation/variables/', views.get_user_dynamic_variables, name='dynamic-variables'),
+    
+    # ElevenLabs Webhook endpoints
+    path('webhooks/elevenlabs/award-xp/', views.elevenlabs_award_xp_webhook, name='elevenlabs_award_xp'),
+    path('webhooks/elevenlabs/conversation-end/', views.elevenlabs_conversation_end_webhook, name='elevenlabs_conversation_end'),
 ] 

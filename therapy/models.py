@@ -25,6 +25,32 @@ class UserProfile(models.Model):
     def xp_to_next_level(self):
         """Calculate XP needed for next level"""
         return (self.level * 100) - (self.experience_points % (self.level * 100))
+    
+    @property
+    def level_progress(self):
+        """Calculate progress percentage to next level"""
+        current_level_xp = self._calculate_xp_for_level(self.level)
+        next_level_xp = self._calculate_xp_for_level(self.level + 1)
+        level_range = next_level_xp - current_level_xp
+        
+        if level_range == 0:
+            return 1.0
+        
+        progress_in_level = self.experience_points - current_level_xp
+        return (progress_in_level / level_range).clamp(0.0, 1.0)
+    
+    def _calculate_xp_for_level(self, level):
+        """Calculate XP required for a specific level"""
+        if level == 1:
+            return 0
+        elif level <= 5:
+            # Simple formula for levels 1-5
+            return (level - 1) * 100
+        else:
+            # More complex formula for higher levels
+            base_xp = 400  # XP for level 5
+            additional_levels = level - 5
+            return base_xp + (additional_levels * 150) + (additional_levels * (additional_levels - 1) * 25)
 
 
 class CharacterCustomization(models.Model):
@@ -249,3 +275,91 @@ class UserAvatar(models.Model):
 
     def __str__(self):
         return f"{self.user.username} avatar ({self.provider})"
+
+
+class ConversationSession(models.Model):
+    """Track Eleven Labs conversation sessions with enhanced memory"""
+    
+    DIFFICULTY_LEVELS = [
+        ('beginner', 'Beginner'),
+        ('intermediate', 'Intermediate'),
+        ('advanced', 'Advanced'),
+    ]
+    
+    ENGAGEMENT_LEVELS = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="conversation_sessions")
+    elevenlabs_conversation_id = models.CharField(max_length=255, unique=True)
+    duration = models.DurationField(default=timedelta())
+    user_messages_count = models.IntegerField(default=0)
+    ai_responses_count = models.IntegerField(default=0)
+    topics_covered = models.JSONField(default=list)
+    difficulty_level = models.CharField(max_length=20, choices=DIFFICULTY_LEVELS, default='beginner')
+    engagement_level = models.CharField(max_length=10, choices=ENGAGEMENT_LEVELS, default='medium')
+    speech_clarity_notes = models.TextField(blank=True)
+    improvements_noted = models.JSONField(default=list)
+    areas_to_work_on = models.JSONField(default=list)
+    experience_earned = models.IntegerField(default=0)
+    session_rating = models.FloatField(default=0.0, validators=[MinValueValidator(0.0), MaxValueValidator(5.0)])
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} - Conversation {self.elevenlabs_conversation_id[:8]}"
+
+    @property
+    def session_summary(self):
+        """Generate a summary of this session for future reference"""
+        return {
+            'duration_minutes': int(self.duration.total_seconds() // 60),
+            'engagement': self.engagement_level,
+            'topics': self.topics_covered,
+            'improvements': self.improvements_noted,
+            'areas_to_improve': self.areas_to_work_on,
+            'rating': self.session_rating,
+        }
+
+
+class UserMemory(models.Model):
+    """Store personalized memory about user's progress and preferences"""
+    
+    MEMORY_TYPES = [
+        ('preference', 'User Preference'),
+        ('achievement', 'Achievement Milestone'),
+        ('challenge', 'Ongoing Challenge'),
+        ('interest', 'Personal Interest'),
+        ('goal', 'Learning Goal'),
+        ('feedback', 'Feedback Response'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memories")
+    memory_type = models.CharField(max_length=20, choices=MEMORY_TYPES)
+    key = models.CharField(max_length=100)  # e.g., "favorite_topic", "last_achievement"
+    value = models.TextField()  # JSON or text value
+    importance_score = models.FloatField(default=1.0, validators=[MinValueValidator(0.0), MaxValueValidator(10.0)])
+    last_referenced = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ['user', 'key']
+        indexes = [
+            models.Index(fields=['user', 'memory_type']),
+            models.Index(fields=['user', 'importance_score']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.key}: {self.value[:50]}"
+
+    @classmethod
+    def get_user_context(cls, user, limit=10):
+        """Get most important and recent memories for user context"""
+        return cls.objects.filter(
+            user=user, 
+            is_active=True
+        ).order_by('-importance_score', '-last_referenced')[:limit]
