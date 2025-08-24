@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
+from core.models import User
 
 from .models import (
     UserProfile, CharacterCustomization, UnlockedCustomization, SpeechSession, 

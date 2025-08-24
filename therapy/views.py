@@ -9,7 +9,7 @@ from rest_framework import generics, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth.models import User
+from core.models import User
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from .webhook_logger import WebhookLogger
